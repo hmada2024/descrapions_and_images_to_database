@@ -227,7 +227,7 @@ def split_filename(filename):
     words = filename.split()
     segments = []
     current_segment = []
-
+    
     for word in words:
         if len(word) > 3:
             if current_segment:
@@ -236,7 +236,7 @@ def split_filename(filename):
             segments.append(word)
         else:
             current_segment.append(word)
-            if sum(len(w) for w in current_segment) >= 3:
+            if sum(len(w) for w in current_segment) >= 3 or len(words) == len(current_segment) :
                 segments.append(' '.join(current_segment))
                 current_segment = []
 
