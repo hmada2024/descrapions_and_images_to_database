@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import sqlite3
 import os
-from gtts import gTTS
 import tempfile
 import time  # استيراد مكتبة الوقت
 
@@ -25,9 +24,8 @@ class ImageToBlobTab(ttk.Frame):
         self.audio_column = tk.StringVar()
         self.segments_table = tk.StringVar()
         self.segment_column = tk.StringVar()
-        self.full_text_column = tk.StringVar()  # إضافة متغير لعمود النص الكامل
+        self.full_text_column = tk.StringVar()
         self.image_folder_path = tk.StringVar()
-        self.use_audio = tk.BooleanVar(value=True)  # إضافة متغير للتحكم في استخدام الصوت
 
         self.setup_widgets()
 
@@ -84,7 +82,6 @@ class ImageToBlobTab(ttk.Frame):
         ttk.Button(image_frame, text="تصفح", command=self.browse_images_folder).grid(row=0, column=2, padx=5, pady=2)
 
         # عناصر التحكم
-        ttk.Checkbutton(self, text="استخدام الصوت", variable=self.use_audio).pack(pady=5)
         self.progress = ttk.Progressbar(self, orient=tk.HORIZONTAL, length=400, mode='determinate')
         self.progress.pack(pady=10)
 
@@ -115,7 +112,6 @@ class ImageToBlobTab(ttk.Frame):
         table = self.segments_table.get()
         self.update_columns(table, self.segment_column_combo)
 
-
     def update_columns(self, table, combo):
         conn = sqlite3.connect(self.db_path.get())
         cursor = conn.cursor()
@@ -138,7 +134,6 @@ class ImageToBlobTab(ttk.Frame):
         segments_table = self.segments_table.get()
         segment_column = self.segment_column.get()
         full_text_column = self.full_text_column.get() # الحصول على عمود النص الكامل
-        use_audio = self.use_audio.get() # الحصول على قيمة استخدام الصوت
 
         required_fields = [
             db_path,
@@ -162,11 +157,10 @@ class ImageToBlobTab(ttk.Frame):
             segments_table=segments_table,
             segment_column=segment_column,
             full_text_column=full_text_column,
-            use_audio=use_audio,
             progress=self.progress
         )
 
-def process_images_folder(db_path, image_folder, image_table, image_column, audio_column, segments_table, segment_column, full_text_column, use_audio, progress):
+def process_images_folder(db_path, image_folder, image_table, image_column, audio_column, segments_table, segment_column, full_text_column, progress):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -184,43 +178,21 @@ def process_images_folder(db_path, image_folder, image_table, image_column, audi
                 with open(img_path, 'rb') as f:
                     img_blob = f.read()
 
-                # توليد الصوت من اسم الملف
-                audio_blob = None
-                description = os.path.splitext(filename)[0]
-
-                if audio_column and use_audio: # استخدام قيمة استخدام الصوت
-                    try:
-                        # استخدام المجلد المؤقت المحدد
-                        temp_dir = r"F:\flutter_apps\descrapions_and_images_to_database\temp_audio"
-                        os.makedirs(temp_dir, exist_ok=True)
-
-                        with tempfile.NamedTemporaryFile(dir=temp_dir, delete=True) as temp_file:
-                            tts = gTTS(text=description, lang='ar')
-                            tts.save(temp_file.name)
-
-                            # قراءة الملف الصوتي كـ BLOB
-                            with open(temp_file.name, 'rb') as audio_file:
-                                audio_blob = audio_file.read()
-                            # تم حذف الملف المؤقت تلقائيًا بواسطة سياق with
-
-                    except Exception as e:
-                        messagebox.showwarning("تحذير", f"فشل في توليد الصوت لـ {filename}: {str(e)}")
-
-                # إدخال البيانات في الجدول
-                if audio_column and use_audio and audio_blob: # استخدام قيمة استخدام الصوت
+                # إدخال البيانات في جدول الصور (مع الصوت إذا كان موجودًا)
+                if audio_column:
                     cursor.execute(
                         f"INSERT INTO {image_table} ({image_column}, {audio_column}) VALUES (?, ?)",
-                        (img_blob, audio_blob)
+                        (img_blob, None) # يمكنك هنا توفير قيمة الصوت إذا كان ذلك مطلوبًا
                     )
                 else:
-                    cursor.execute(
+                      cursor.execute(
                         f"INSERT INTO {image_table} ({image_column}) VALUES (?)",
                         (img_blob,)
                     )
-                
-                
+
                 # ادخال النص الكامل في الجدول الأساسي
                 if full_text_column:
+                    description = os.path.splitext(filename)[0]
                     cursor.execute(
                         f"UPDATE {image_table} SET {full_text_column} = ? WHERE ROWID = last_insert_rowid()",
                         (description,)
@@ -230,12 +202,14 @@ def process_images_folder(db_path, image_folder, image_table, image_column, audi
                 
 
                 # معالجة الأجزاء النصية
+                description = os.path.splitext(filename)[0]
                 segments = split_filename(description)
-                for segment in segments:
+                for i, segment in enumerate(segments): #تعديل هنا لاضافة الترتيب
                     cursor.execute(
-                        f"INSERT INTO {segments_table} ({segment_column}, image_id) VALUES (?, ?)",
-                        (segment, image_id)
+                        f"INSERT INTO {segments_table} ({segment_column}, image_id, segment_order) VALUES (?, ?, ?)",
+                        (segment, image_id, i + 1) # قم بتعيين الترتيب هنا
                     )
+
 
                 processed += 1
                 progress['value'] = processed
