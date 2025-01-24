@@ -25,6 +25,7 @@ class ImageToBlobTab(ttk.Frame):
         self.segments_table = tk.StringVar()
         self.segment_column = tk.StringVar()
         self.full_text_column = tk.StringVar()
+        self.segment_order_column = tk.StringVar() # عمود ترتيب القطع
         self.image_folder_path = tk.StringVar()
 
         self.setup_widgets()
@@ -72,6 +73,10 @@ class ImageToBlobTab(ttk.Frame):
         ttk.Label(segments_table_frame, text="عمود التقطيع:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
         self.segment_column_combo = ttk.Combobox(segments_table_frame, textvariable=self.segment_column, state="readonly")
         self.segment_column_combo.grid(row=1, column=1, padx=5, pady=2)
+        
+        ttk.Label(segments_table_frame, text="عمود ترتيب القطع:").grid(row=2, column=0, padx=5, pady=2, sticky="w") # Label for the new column
+        self.segment_order_column_combo = ttk.Combobox(segments_table_frame, textvariable=self.segment_order_column, state="readonly")
+        self.segment_order_column_combo.grid(row=2, column=1, padx=5, pady=2) # Combo for the new column
 
         # إطار الصور
         image_frame = ttk.LabelFrame(self, text="مجلد الصور")
@@ -111,6 +116,8 @@ class ImageToBlobTab(ttk.Frame):
     def on_segments_table_selected(self, event=None):
         table = self.segments_table.get()
         self.update_columns(table, self.segment_column_combo)
+        self.update_columns(table, self.segment_order_column_combo) # Update the segment order column combo
+        
 
     def update_columns(self, table, combo):
         conn = sqlite3.connect(self.db_path.get())
@@ -134,6 +141,7 @@ class ImageToBlobTab(ttk.Frame):
         segments_table = self.segments_table.get()
         segment_column = self.segment_column.get()
         full_text_column = self.full_text_column.get() # الحصول على عمود النص الكامل
+        segment_order_column = self.segment_order_column.get() # Get segment order column
 
         required_fields = [
             db_path,
@@ -141,7 +149,8 @@ class ImageToBlobTab(ttk.Frame):
             image_table,
             image_column,
             segments_table,
-            segment_column
+            segment_column,
+            segment_order_column
         ]
 
         if not all(required_fields):
@@ -157,10 +166,11 @@ class ImageToBlobTab(ttk.Frame):
             segments_table=segments_table,
             segment_column=segment_column,
             full_text_column=full_text_column,
+            segment_order_column=segment_order_column,
             progress=self.progress
         )
 
-def process_images_folder(db_path, image_folder, image_table, image_column, audio_column, segments_table, segment_column, full_text_column, progress):
+def process_images_folder(db_path, image_folder, image_table, image_column, audio_column, segments_table, segment_column, full_text_column, segment_order_column, progress):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -206,7 +216,7 @@ def process_images_folder(db_path, image_folder, image_table, image_column, audi
                 segments = split_filename(description)
                 for i, segment in enumerate(segments): #تعديل هنا لاضافة الترتيب
                     cursor.execute(
-                        f"INSERT INTO {segments_table} ({segment_column}, image_id, segment_order) VALUES (?, ?, ?)",
+                        f"INSERT INTO {segments_table} ({segment_column}, image_id, {segment_order_column}) VALUES (?, ?, ?)",
                         (segment, image_id, i + 1) # قم بتعيين الترتيب هنا
                     )
 
@@ -227,16 +237,16 @@ def split_filename(filename):
     words = filename.split()
     segments = []
     current_segment = []
-    
+
     for word in words:
         if len(word) > 3:
             if current_segment:
-                segments.append(' '.join(current_segment))
-                current_segment = []
+                 segments.append(' '.join(current_segment))
+                 current_segment = []
             segments.append(word)
         else:
             current_segment.append(word)
-            if sum(len(w) for w in current_segment) >= 3 or len(words) == len(current_segment) :
+            if sum(len(w) for w in current_segment) >= 3 or len(words) == len(current_segment):
                 segments.append(' '.join(current_segment))
                 current_segment = []
 
