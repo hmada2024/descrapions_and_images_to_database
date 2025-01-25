@@ -1,9 +1,8 @@
+# image_to_blob_gui.py
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import sqlite3
-import os
-import tempfile
-import time  # استيراد مكتبة الوقت
+from image_to_blob_logic import process_images_folder  # Import the logic function
+import sqlite3 # Import the sqlite3
 
 class ImageToBlobApp(tk.Tk):
     def __init__(self):
@@ -25,7 +24,7 @@ class ImageToBlobTab(ttk.Frame):
         self.segments_table = tk.StringVar()
         self.segment_column = tk.StringVar()
         self.full_text_column = tk.StringVar()
-        self.segment_order_column = tk.StringVar() # عمود ترتيب القطع
+        self.segment_order_column = tk.StringVar()  # عمود ترتيب القطع
         self.image_folder_path = tk.StringVar()
 
         self.setup_widgets()
@@ -55,11 +54,10 @@ class ImageToBlobTab(ttk.Frame):
         ttk.Label(image_table_frame, text="عمود الصوت:").grid(row=2, column=0, padx=5, pady=2, sticky="w")
         self.audio_column_combo = ttk.Combobox(image_table_frame, textvariable=self.audio_column, state="readonly")
         self.audio_column_combo.grid(row=2, column=1, padx=5, pady=2)
-        
+
         ttk.Label(image_table_frame, text="عمود النص الكامل:").grid(row=3, column=0, padx=5, pady=2, sticky="w")
         self.full_text_column_combo = ttk.Combobox(image_table_frame, textvariable=self.full_text_column, state="readonly")
         self.full_text_column_combo.grid(row=3, column=1, padx=5, pady=2)
-
 
         # إطار جدول الأجزاء
         segments_table_frame = ttk.LabelFrame(self, text="جدول الأجزاء")
@@ -73,10 +71,10 @@ class ImageToBlobTab(ttk.Frame):
         ttk.Label(segments_table_frame, text="عمود التقطيع:").grid(row=1, column=0, padx=5, pady=2, sticky="w")
         self.segment_column_combo = ttk.Combobox(segments_table_frame, textvariable=self.segment_column, state="readonly")
         self.segment_column_combo.grid(row=1, column=1, padx=5, pady=2)
-        
-        ttk.Label(segments_table_frame, text="عمود ترتيب القطع:").grid(row=2, column=0, padx=5, pady=2, sticky="w") # Label for the new column
+
+        ttk.Label(segments_table_frame, text="عمود ترتيب القطع:").grid(row=2, column=0, padx=5, pady=2, sticky="w")
         self.segment_order_column_combo = ttk.Combobox(segments_table_frame, textvariable=self.segment_order_column, state="readonly")
-        self.segment_order_column_combo.grid(row=2, column=1, padx=5, pady=2) # Combo for the new column
+        self.segment_order_column_combo.grid(row=2, column=1, padx=5, pady=2)
 
         # إطار الصور
         image_frame = ttk.LabelFrame(self, text="مجلد الصور")
@@ -116,8 +114,7 @@ class ImageToBlobTab(ttk.Frame):
     def on_segments_table_selected(self, event=None):
         table = self.segments_table.get()
         self.update_columns(table, self.segment_column_combo)
-        self.update_columns(table, self.segment_order_column_combo) # Update the segment order column combo
-        
+        self.update_columns(table, self.segment_order_column_combo)
 
     def update_columns(self, table, combo):
         conn = sqlite3.connect(self.db_path.get())
@@ -140,8 +137,8 @@ class ImageToBlobTab(ttk.Frame):
         audio_column = self.audio_column.get()
         segments_table = self.segments_table.get()
         segment_column = self.segment_column.get()
-        full_text_column = self.full_text_column.get() # الحصول على عمود النص الكامل
-        segment_order_column = self.segment_order_column.get() # Get segment order column
+        full_text_column = self.full_text_column.get()
+        segment_order_column = self.segment_order_column.get()
 
         required_fields = [
             db_path,
@@ -169,73 +166,6 @@ class ImageToBlobTab(ttk.Frame):
             segment_order_column=segment_order_column,
             progress=self.progress
         )
-
-def process_images_folder(db_path, image_folder, image_table, image_column, audio_column, segments_table, segment_column, full_text_column, segment_order_column, progress):
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        total_files = len([f for f in os.listdir(image_folder)
-                          if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))])
-        progress['maximum'] = total_files
-        processed = 0
-
-        for filename in os.listdir(image_folder):
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
-                img_path = os.path.join(image_folder, filename)
-
-                # تحميل الصورة
-                with open(img_path, 'rb') as f:
-                    img_blob = f.read()
-
-                # إدخال البيانات في جدول الصور (مع الصوت إذا كان موجودًا)
-                if audio_column:
-                    cursor.execute(
-                        f"INSERT INTO {image_table} ({image_column}, {audio_column}) VALUES (?, ?)",
-                        (img_blob, None) # يمكنك هنا توفير قيمة الصوت إذا كان ذلك مطلوبًا
-                    )
-                else:
-                      cursor.execute(
-                        f"INSERT INTO {image_table} ({image_column}) VALUES (?)",
-                        (img_blob,)
-                    )
-
-                # ادخال النص الكامل في الجدول الأساسي
-                if full_text_column:
-                    description = os.path.splitext(filename)[0]
-                    cursor.execute(
-                        f"UPDATE {image_table} SET {full_text_column} = ? WHERE ROWID = last_insert_rowid()",
-                        (description,)
-                    )
-
-                image_id = cursor.lastrowid
-                
-
-                # معالجة الأجزاء النصية
-                description = os.path.splitext(filename)[0]
-                segments = split_filename(description)
-                for i, segment in enumerate(segments): #تعديل هنا لاضافة الترتيب
-                    cursor.execute(
-                        f"INSERT INTO {segments_table} ({segment_column}, image_id, {segment_order_column}) VALUES (?, ?, ?)",
-                        (segment, image_id, i + 1) # قم بتعيين الترتيب هنا
-                    )
-
-
-                processed += 1
-                progress['value'] = processed
-                conn.commit()
-
-        messagebox.showinfo("نجاح", "تم معالجة جميع الصور بنجاح!")
-
-    except Exception as e:
-        messagebox.showerror("خطأ", f"حدث خطأ: {str(e)}")
-    finally:
-        if conn:
-            conn.close()
-
-def split_filename(filename):
-    return filename.split()
-
 
 if __name__ == "__main__":
     app = ImageToBlobApp()
