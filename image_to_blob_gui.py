@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from image_to_blob_logic import process_images_folder  # Import the logic function
-import sqlite3 # Import the sqlite3
+import sqlite3
 
 class ImageToBlobApp(tk.Tk):
     def __init__(self):

@@ -2,7 +2,7 @@
 import sqlite3
 import os
 import tempfile
-from tkinter import messagebox # Import the messagebox
+from tkinter import messagebox 
 
 def process_images_folder(db_path, image_folder, image_table, image_column, audio_column, segments_table, segment_column, full_text_column, segment_order_column, progress):
     try:
